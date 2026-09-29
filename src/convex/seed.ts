@@ -274,44 +274,54 @@ export const ensureAdmin = internalMutation({
   args: {},
   handler: async (ctx) => {
     const email = "shivappapujari2008@gmail.com";
-    const password = "shivappa";
+    const password = "9096326948";
 
-    // 1. Create the auth account if it does not exist yet.
+    // 1. Rotate the auth account: delete the old one (if any) so the new
+    // password secret replaces it, and drop sessions tied to the old secret.
     const existingAuth = await ctx.db
       .query("authAccounts")
       .filter((q) => q.eq(q.field("providerAccountId"), email))
       .first();
-    if (!existingAuth) {
-      await createAccount(ctx as unknown as AuthCtx, {
-        provider: "password",
-        account: { id: email, secret: password },
-        profile: { email },
-      });
+    if (existingAuth) {
+      const oldUser = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", email))
+        .first();
+      if (oldUser) {
+        for (const s of await ctx.db
+          .query("authSessions")
+          .filter((q) => q.eq(q.field("userId"), oldUser._id))
+          .collect()) {
+          await ctx.db.delete(s._id);
+        }
+        await ctx.db.delete(oldUser._id);
+      }
+      await ctx.db.delete(existingAuth._id);
     }
 
-    // 2. Find or create the users row.
+    // 2. (Re)create the auth account with the current password.
+    await createAccount(ctx as unknown as AuthCtx, {
+      provider: "password",
+      account: { id: email, secret: password },
+      profile: { email, name: "Shivappa Pujari" },
+    });
+
+    // 3. Ensure the users row exists and carries the full admin profile.
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
-
-    let userId: Id<"users">;
+    const adminProfile = {
+      name: "Shivappa Pujari",
+      phone: "+91 90000 00001",
+      address: "E-Waste Management Cell, Admin Office",
+      userId: "U-1000",
+      role: "admin" as const,
+    };
     if (user) {
-      userId = user._id;
+      await ctx.db.patch(user._id, adminProfile);
     } else {
-      userId = await ctx.db.insert("users", {
-        name: "Shivappa Pujari",
-        email,
-        phone: "+91 90000 00001",
-        address: "E-Waste Management Cell, Admin Office",
-        role: "admin",
-        userId: "U-1000",
-      });
-    }
-
-    // 3. Force role=admin (also fixes pre-existing rows with wrong role).
-    if (user?.role !== "admin") {
-      await ctx.db.patch(userId, { role: "admin" });
+      await ctx.db.insert("users", { email, ...adminProfile });
     }
 
     return "Admin ready: shivappapujari2008@gmail.com (role=admin).";
