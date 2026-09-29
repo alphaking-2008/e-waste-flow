@@ -39,6 +39,9 @@ export default function AuthPage() {
     setIsLoading(true);
     setError(null);
     const formData = new FormData(event.currentTarget);
+    // Convex Auth's Password provider requires an explicit flow
+    // ("signIn" | "signUp"); it is derived from the active tab.
+    formData.set("flow", mode);
     try {
       await signIn("password", formData);
       navigate(redirect, { replace: true });
