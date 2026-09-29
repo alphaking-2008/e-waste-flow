@@ -1,6 +1,8 @@
 import { createAccount } from "@convex-dev/auth/server";
 import { internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
+
+type AuthCtx = Parameters<typeof createAccount>[0];
 
 /**
  * One-time sample data loader (INSERT statements) so every table has
@@ -24,7 +26,7 @@ export const loadSampleData = internalMutation({
       "Cables",
       "Other Electronics",
     ];
-    const categoryIds: Record<string, any> = {};
+    const categoryIds: Record<string, Id<"categories">> = {};
     for (const name of categoryNames) {
       categoryIds[name] = await ctx.db.insert("categories", { name });
     }
@@ -37,7 +39,7 @@ export const loadSampleData = internalMutation({
       { name: "Ishita Rao", email: "ishita@student.edu", phone: "+91 98200 11004", address: "230 Palm Street, Indiranagar, Bengaluru 560038" },
       { name: "Kabir Nair", email: "kabir@student.edu", phone: "+91 98200 11005", address: "18 Sunrise Enclave, Banjara Hills, Hyderabad 500034" },
     ];
-    const userIds: any[] = [];
+    const userIds: Id<"users">[] = [];
     for (let i = 0; i < demoUsers.length; i++) {
       const u = demoUsers[i];
       const id = await ctx.db.insert("users", {
@@ -51,7 +53,7 @@ export const loadSampleData = internalMutation({
       userIds.push(id);
       // Create the auth account so demo users can actually log in
       // (password hashing is handled by the auth package).
-      await createAccount(ctx as any, {
+      await createAccount(ctx as unknown as AuthCtx, {
         provider: "password",
         account: { id: u.email, secret: "ewaste123" },
         profile: { email: u.email, name: u.name },
@@ -157,7 +159,7 @@ export const loadSampleDataBatch2 = internalMutation({
       { name: "Arjun Verma", email: "arjun@student.edu", phone: "+91 98200 11007", address: "62 Maple Heights, Sector 9, Chandigarh 160009" },
       { name: "Sneha Kulkarni", email: "sneha@student.edu", phone: "+91 98200 11008", address: "31 Palm Grove, Alwarpet, Chennai 600018" },
     ];
-    const newUserIds: any[] = [];
+    const newUserIds: Id<"users">[] = [];
     for (let i = 0; i < newUsers.length; i++) {
       const u = newUsers[i];
       const id = await ctx.db.insert("users", {
@@ -169,7 +171,7 @@ export const loadSampleDataBatch2 = internalMutation({
         userId: `U-${1006 + i}`,
       });
       newUserIds.push(id);
-      await createAccount(ctx as any, {
+      await createAccount(ctx as unknown as AuthCtx, {
         provider: "password",
         account: { id: u.email, secret: "ewaste123" },
         profile: { email: u.email, name: u.name },
@@ -178,7 +180,7 @@ export const loadSampleDataBatch2 = internalMutation({
 
     // ---------- e_waste rows EW-0013 … EW-0024 ----------
     const categoryRows = await ctx.db.query("categories").collect();
-    const categoryIds: Record<string, any> = {};
+    const categoryIds: Record<string, Id<"categories">> = {};
     for (const row of categoryRows) categoryIds[row.name] = row._id;
 
     const allUserIds = (await ctx.db.query("users").collect())
