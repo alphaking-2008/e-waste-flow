@@ -264,3 +264,56 @@ export const loadSampleDataBatch2 = internalMutation({
     return `Batch 2: seeded ${seeds.length} records, ${newUsers.length} users.`;
   },
 });
+
+/**
+ * Idempotent admin bootstrap. Ensures the admin auth account (password
+ * provider) and users row exist, and forces role=admin on the users row.
+ * Safe to run repeatedly. Run with: bun convex run seed:ensureAdmin
+ */
+export const ensureAdmin = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const email = "shivappapujari2008@gmail.com";
+    const password = "shivappa";
+
+    // 1. Create the auth account if it does not exist yet.
+    const existingAuth = await ctx.db
+      .query("authAccounts")
+      .filter((q) => q.eq(q.field("providerAccountId"), email))
+      .first();
+    if (!existingAuth) {
+      await createAccount(ctx as unknown as AuthCtx, {
+        provider: "password",
+        account: { id: email, secret: password },
+        profile: { email },
+      });
+    }
+
+    // 2. Find or create the users row.
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", email))
+      .first();
+
+    let userId: Id<"users">;
+    if (user) {
+      userId = user._id;
+    } else {
+      userId = await ctx.db.insert("users", {
+        name: "Shivappa Pujari",
+        email,
+        phone: "+91 90000 00001",
+        address: "E-Waste Management Cell, Admin Office",
+        role: "admin",
+        userId: "U-1000",
+      });
+    }
+
+    // 3. Force role=admin (also fixes pre-existing rows with wrong role).
+    if (user?.role !== "admin") {
+      await ctx.db.patch(userId, { role: "admin" });
+    }
+
+    return "Admin ready: shivappapujari2008@gmail.com (role=admin).";
+  },
+});
